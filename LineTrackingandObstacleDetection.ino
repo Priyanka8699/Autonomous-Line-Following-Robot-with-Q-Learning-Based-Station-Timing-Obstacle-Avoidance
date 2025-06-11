@@ -1,0 +1,236 @@
+// Keyestudio 4WD Robot: 3-Sensor IR + Obstacle Avoidance with Servo Scan
+
+#define ML_Ctrl 4
+#define ML_PWM 5
+#define MR_Ctrl 2
+#define MR_PWM 6
+
+#define sensor_l 11
+#define sensor_c 7
+#define sensor_r 8
+
+#define TRIG_PIN 12  // Ultrasonic trigger
+#define ECHO_PIN 13  // Ultrasonic echo
+
+#define SERVOPIN 10  // Servo motor pin
+
+int l_val, c_val, r_val;
+int speedVal = 110;
+int Set = 15; // Distance threshold for obstacle
+long distance_F, distance_L, distance_R;
+
+void setup() {
+  Serial.begin(9600);
+ // Motor setup
+  pinMode(ML_Ctrl, OUTPUT);
+  pinMode(ML_PWM, OUTPUT);
+  pinMode(MR_Ctrl, OUTPUT);
+  pinMode(MR_PWM, OUTPUT);
+
+  // IR sensors
+  pinMode(sensor_l, INPUT);
+  pinMode(sensor_c, INPUT);
+  pinMode(sensor_r, INPUT);
+
+  // Ultrasonic sensor
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  // Servo
+  pinMode(SERVOPIN, OUTPUT);
+
+  // Sweep servo to initialize
+  for (int angle = 70; angle <= 140; angle += 5) servoPulse(SERVOPIN, angle);
+  for (int angle = 140; angle >= 0; angle -= 5) servoPulse(SERVOPIN, angle);
+  for (int angle = 0; angle <= 70; angle += 5) servoPulse(SERVOPIN, angle);
+
+  delay(500);
+}
+
+void loop() {
+  // Read IR sensors
+  l_val = digitalRead(sensor_l);
+  c_val = digitalRead(sensor_c);
+  r_val = digitalRead(sensor_r);
+
+  // Read front distance
+  distance_F = readUltrasonic();
+
+  Serial.print("IR L="); Serial.print(l_val);
+  Serial.print(" C="); Serial.print(c_val);
+  Serial.print(" R="); Serial.print(r_val);
+  Serial.print(" | Dist F="); Serial.println(distance_F);
+
+  // Check if line-following is safe (no obstacle)
+  if (distance_F > Set) {
+    tracking();  // normal line following
+  } else {
+    Stop();
+    Check_side(); // perform obstacle avoidance
+  }
+
+  delay(50);
+}
+
+//====================== Line Tracking =======================
+
+void tracking() {
+  if (c_val == 1 && l_val == 0 && r_val == 0) {
+    front();
+  } else if (l_val == 1 && c_val == 0) {
+    right();
+  } else if (r_val == 1 && c_val == 0) {
+    left();
+  } else if (l_val == 1 && c_val == 1 && r_val == 0) {
+    right();
+  } else if (r_val == 1 && c_val == 1 && l_val == 0) {
+    left();
+  // } else if (l_val == 0 && c_val == 0 && r_val == 0) {
+  //   //front();
+  //   Stop();
+  //   delay(1000);
+  //   digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 100);
+  // digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 100);
+
+
+  } 
+  else if(l_val == 1 && c_val == 1 && r_val == 1)
+   {
+    Stop();
+    delay(5000);
+    //digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 100);
+  //digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 100);
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, speedVal);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, speedVal);
+
+  }
+}
+
+//====================== Obstacle Avoidance =======================
+
+void Check_side() {
+  Stop();
+  delay(100);
+
+  // Scan Right
+  for (int angle = 70; angle <= 140; angle += 5) servoPulse(SERVOPIN, angle);
+  delay(200);
+  distance_R = readUltrasonic();
+  Serial.print("Distance Right: "); Serial.println(distance_R);
+
+  // Scan Left
+  for (int angle = 140; angle >= 0; angle -= 5) servoPulse(SERVOPIN, angle);
+  delay(200);
+  distance_L = readUltrasonic();
+  Serial.print("Distance Left: "); Serial.println(distance_L);
+
+  // Reset servo center
+  for (int angle = 0; angle <= 70; angle += 5) servoPulse(SERVOPIN, angle);
+  delay(300);
+
+  compareDistance();
+}
+
+void compareDistance(){
+    if(distance_L > distance_R){{}
+  //left();
+  Serial.println("right");
+  digitalWrite(ML_Ctrl, LOW); analogWrite(ML_PWM, 150);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 150);
+  delay(800);
+  //front();
+  Serial.println("Forward");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 150);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 150);
+  delay(1000);
+  //right();
+  Serial.println("left");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 150);
+  digitalWrite(MR_Ctrl, LOW); analogWrite(MR_PWM, 150);
+  delay(1000);
+  //front();
+  Serial.println("Forward");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 150);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 150);
+  delay(600);
+  right();
+  delay(400);
+  }
+  else{
+  //right();
+  Serial.println("right");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 300);
+  digitalWrite(MR_Ctrl, LOW); analogWrite(MR_PWM, 300);
+  delay(2000);
+  //front();
+  Serial.println("Forward");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, 300);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 300);
+  delay(1500);
+  //left();
+  Serial.println("left");
+  digitalWrite(ML_Ctrl, LOW); analogWrite(ML_PWM, 300);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, 300);
+  delay(1000);
+  front();
+  delay(1500);  
+  left();
+  delay(1000);
+  }
+}
+
+//====================== Servo & Distance =======================
+
+void servoPulse(int pin, int angle) {
+  int pwm = (angle * 11) + 500; // Convert angle to pulse width
+  digitalWrite(pin, HIGH);
+  delayMicroseconds(pwm);
+  digitalWrite(pin, LOW);
+  delay(50); // Wait for servo to move
+}
+
+long readUltrasonic() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  return duration / 29 / 2; // Convert to cm
+}
+
+//====================== Movement =======================
+
+void front() {
+  Serial.println("Forward");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, speedVal);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, speedVal);
+}
+
+void back() {
+  Serial.println("Backward");
+  digitalWrite(ML_Ctrl, LOW); analogWrite(ML_PWM, speedVal);
+  digitalWrite(MR_Ctrl, LOW); analogWrite(MR_PWM, speedVal);
+}
+
+void left() {
+  Serial.println("Left");
+  digitalWrite(ML_Ctrl, LOW); analogWrite(ML_PWM, speedVal);
+  digitalWrite(MR_Ctrl, HIGH); analogWrite(MR_PWM, speedVal);
+}
+
+void right() {
+  Serial.println("Right");
+  digitalWrite(ML_Ctrl, HIGH); analogWrite(ML_PWM, speedVal);
+  digitalWrite(MR_Ctrl, LOW); analogWrite(MR_PWM, speedVal);
+}
+
+void Stop() {
+
+  Serial.println("Stop");
+  //analogWrite(ML_PWM, 0);
+  //analogWrite(MR_PWM, 0);
+digitalWrite(ML_Ctrl, LOW); analogWrite(ML_PWM, 0);
+  digitalWrite(MR_Ctrl, LOW); analogWrite(MR_PWM, 0);
+
+}
